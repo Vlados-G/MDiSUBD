@@ -1,17 +1,4 @@
--- Database: mdisubd
 
-DROP DATABASE IF EXISTS mdisubd WITH (FORCE);
-
-CREATE DATABASE mdisubd
-    WITH
-    OWNER = postgres
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'Russian_Russia.1251'
-    LC_CTYPE = 'Russian_Russia.1251'
-    TABLESPACE = pg_default
-    CONNECTION LIMIT = -1
-    IS_TEMPLATE = False;
-	
 CREATE EXTENSION pgcrypto;
 	
 CREATE TABLE IF NOT EXISTS account_statuses(
@@ -297,21 +284,21 @@ END;
 $$;
 
 -- Putting medicine into shopping cart procedure
-CREATE OR REPLACE PROCEDURE put_in_shopping_cart(user_id Integer, product_id Integer, amount_pr Integer)
+CREATE OR REPLACE PROCEDURE put_in_shopping_cart(new_user_id Integer, product_id Integer, amount_pr Integer)
 LANGUAGE plpgsql
 AS $$
 	DECLARE shopping_cart_orders_count Integer;
-	DECLARE client_id Integer;
+	DECLARE new_client_id Integer;
 		
 	BEGIN
 	
 	UPDATE products SET amount=amount-amount_pr WHERE products.id=product_id;
 	
-	SELECT id INTO client_id FROM clients WHERE clients.user_id=user_id;
-	SELECT count(orders.id) INTO shopping_cart_orders_count FROM orders WHERE orders.client_id=client_id AND orders.status_id=5;
+	SELECT id INTO new_client_id FROM clients WHERE clients.user_id=new_user_id;
+	SELECT count(orders.id) INTO shopping_cart_orders_count FROM orders WHERE orders.client_id=new_client_id AND orders.status_id=5;
 	
 	IF shopping_cart_orders_count>0 THEN 
-		WITH rows AS (INSERT INTO orders(status_id, client_id, price) VALUES
+		WITH rows AS (INSERT INTO orders(status_id, new_client_id, price) VALUES
 					 (5, client_id, 0) RETURNING id)
 
 		INSERT INTO products_orders(product_id, order_id, amount) VALUES
@@ -322,11 +309,11 @@ AS $$
 		INSERT INTO products_orders(product_id, order_id, amount) VALUES
 			(product_id,
 			(SELECT orders.id
-			FROM orders WHERE orders.status_id=5 AND orders.client_id=client_id), amount_pr);
+			FROM orders WHERE orders.status_id=5 AND orders.client_id=new_client_id), amount_pr);
 	END IF;
 	END;
 $$;
-
+DROP PROCEDURE put_in_shopping_cart;
 -- Функция логгирования заказов
 CREATE OR REPLACE FUNCTION process_order_insert() RETURNS TRIGGER AS $update_price$
 	DECLARE price Integer;
